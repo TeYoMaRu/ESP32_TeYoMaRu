@@ -1,84 +1,48 @@
 #include "desktop.h"
 #include "../core/theme.h"
-#include "../widgets/widgets.h"
-#include <cstring>
+#include "../widgets/statusbar.h"
+#include "../widgets/tile.h"
+#include "../app/navigation.h"
+#include <lvgl.h>
 
-static lv_obj_t *desktop_status_label = NULL;
+/* ======================================================
+   Desktop Screen
+   - ไม่ใช้รูป icon เพื่อลด RAM
+   - ใช้ตัวอักษรสั้น ๆ แทน icon ก่อน
+   - กด Tile แล้วเปิดหน้า Coming Soon ได้ทันที
+====================================================== */
 
-static void on_tile_clicked(const char *title)
-{
-    if (!desktop_status_label)
-        return;
-
-    if (strcmp(title, "SCAN") == 0)
-    {
-        lv_label_set_text(desktop_status_label, "SCAN selected");
-    }
-    else if (strcmp(title, "WIFI") == 0)
-    {
-        lv_label_set_text(desktop_status_label, "WIFI selected");
-    }
-    else if (strcmp(title, "SYS") == 0)
-    {
-        lv_label_set_text(desktop_status_label, "SYS selected");
-    }
+static void on_tile_click(const char *title) {
+  nav_open_app(title);
 }
 
-/*
-   สร้างหน้า Desktop หลัก
-*/
-void desktop_create()
-{
-    lv_obj_t *desktop = lv_obj_create(NULL);
+void desktop_create() {
+  lv_obj_t *scr = lv_obj_create(NULL);
+  theme_apply_screen(scr);
 
-    lv_obj_set_style_bg_color(desktop, C_BG, 0);
-    lv_obj_set_style_bg_opa(desktop, LV_OPA_COVER, 0);
+  statusbar_create(scr);
 
-    // Topbar
-    lv_obj_t *topbar = lv_obj_create(desktop);
-    lv_obj_set_size(topbar, 480, 48);
-    lv_obj_set_pos(topbar, 0, 0);
-    lv_obj_set_style_radius(topbar, 0, 0);
-    lv_obj_set_style_bg_color(topbar, lv_color_hex(0x0F172A), 0);
-    lv_obj_set_style_border_width(topbar, 0, 0);
+  lv_obj_t *title = lv_label_create(scr);
+  lv_label_set_text(title, "TeYoMaRu OS");
+  theme_apply_label(title, true);
+  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 32);
 
-    lv_obj_t *title = lv_label_create(topbar);
-    lv_label_set_text(title, "TeYoMaRu OS");
-    lv_obj_set_style_text_color(title, C_BLUE, 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
-    lv_obj_align(title, LV_ALIGN_LEFT_MID, 16, 0);
+  // แถวที่ 1
+  tile_create(scr, 22, 65,  "+", "Scan",      on_tile_click);
+  tile_create(scr, 94, 65,  "~", "WiFi",      on_tile_click);
+  tile_create(scr, 166, 65, "[]", "Files",    on_tile_click);
+  tile_create(scr, 238, 65, "#", "System",    on_tile_click);
 
-    desktop_status_label = lv_label_create(topbar);
-    lv_label_set_text(desktop_status_label, "READY");
-    lv_obj_set_style_text_color(desktop_status_label, C_GREEN, 0);
-    lv_obj_set_style_text_font(desktop_status_label, &lv_font_montserrat_14, 0);
-    lv_obj_align(desktop_status_label, LV_ALIGN_RIGHT_MID, -16, 0);
+  // แถวที่ 2
+  tile_create(scr, 22, 137, "*", "Settings",  on_tile_click);
+  tile_create(scr, 94, 137, "B", "Bluetooth", on_tile_click);
+  tile_create(scr, 166, 137,"i", "About",     on_tile_click);
+  tile_create(scr, 238, 137,"P", "Power",     on_tile_click);
 
-    // Panel หลัก
-    lv_obj_t *card = ui_create_panel(desktop, 16, 62, 448, 245);
+  lv_obj_t *hint = lv_label_create(scr);
+  lv_label_set_text(hint, "Yellow / White / Orange theme");
+  theme_apply_small_label(hint, true);
+  lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
 
-    lv_obj_t *welcome = lv_label_create(card);
-    lv_label_set_text(welcome, "Welcome back");
-    lv_obj_set_style_text_color(welcome, C_TEXT, 0);
-    lv_obj_set_style_text_font(welcome, &lv_font_montserrat_24, 0);
-    lv_obj_align(welcome, LV_ALIGN_TOP_LEFT, 18, 16);
-
-    lv_obj_t *sub = lv_label_create(card);
-    lv_label_set_text(sub, "Choose a module to continue");
-    lv_obj_set_style_text_color(sub, C_MUTED, 0);
-    lv_obj_set_style_text_font(sub, &lv_font_montserrat_14, 0);
-    lv_obj_align(sub, LV_ALIGN_TOP_LEFT, 18, 48);
-
-    ui_create_tile(card, 18, 92, "SCAN", "Device scan", on_tile_clicked);
-    ui_create_tile(card, 158, 92, "WIFI", "Network", on_tile_clicked);
-    ui_create_tile(card, 298, 92, "SYS", "System info", on_tile_clicked);
-
-    lv_obj_t *footer = lv_label_create(card);
-    lv_label_set_text(footer, "ESP32 + ILI9488 + LVGL");
-    lv_obj_set_style_text_color(footer, lv_color_hex(0x64748B), 0);
-    lv_obj_set_style_text_font(footer, &lv_font_montserrat_12, 0);
-    lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -12);
-
-    
-    lv_scr_load_anim(desktop, LV_SCR_LOAD_ANIM_FADE_ON, 250, 0, true);
+  lv_scr_load(scr);
 }

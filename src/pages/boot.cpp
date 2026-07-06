@@ -1,106 +1,109 @@
 #include "boot.h"
 #include "desktop.h"
 #include "../core/theme.h"
+#include <lvgl.h>
 #include <cstdio>
 
-// Object ของหน้า Boot
+/* ======================================================
+   Boot Screen
+   จุดสำคัญของชุดนี้:
+   - ไม่มี Fade ตอนเข้า Desktop เพื่อลดอาการกระตุก
+   - ใช้ lv_bar แบบ LV_ANIM_OFF เพื่อให้ลื่นกว่า
+   - สีหลักเปลี่ยนเป็น เหลือง / ส้ม / ขาว / แดง
+====================================================== */
+
+static lv_obj_t *boot_scr = NULL;
 static lv_obj_t *boot_bar = NULL;
 static lv_obj_t *percent_label = NULL;
-static lv_obj_t *status_label = NULL;
+static lv_obj_t *info_label = NULL;
 static lv_timer_t *boot_timer = NULL;
-static int boot_percent = 0;
+static int boot_value = 0;
 
-/*
-   Timer เพิ่มเปอร์เซ็นต์ของ Boot
-*/
+static const char *step_text(int value) {
+  if (value < 20) return "Starting...";
+  if (value < 45) return "Loading System...";
+  if (value < 70) return "Loading GUI...";
+  if (value < 100) return "Almost Ready...";
+  return "System Ready";
+}
+
 static void boot_timer_cb(lv_timer_t *timer) {
-  boot_percent += 2;
+  boot_value += 4;
+  if (boot_value > 100) boot_value = 100;
 
-  if (boot_percent > 100) {
-    boot_percent = 100;
-  }
+  lv_bar_set_value(boot_bar, boot_value, LV_ANIM_OFF);
 
-  lv_bar_set_value(boot_bar, boot_percent, LV_ANIM_ON);
-
-  static char buf[16];
-  snprintf(buf, sizeof(buf), "%d%%", boot_percent);
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d%%", boot_value);
   lv_label_set_text(percent_label, buf);
+  lv_label_set_text(info_label, step_text(boot_value));
 
-  if (boot_percent == 25) {
-    lv_label_set_text(status_label, "Loading TeYoMaRu core...");
-  } else if (boot_percent == 55) {
-    lv_label_set_text(status_label, "Preparing desktop...");
-  } else if (boot_percent == 85) {
-    lv_label_set_text(status_label, "Almost ready...");
-  } else if (boot_percent >= 100) {
-    lv_label_set_text(status_label, "Boot complete");
-
+  if (boot_value >= 100) {
     lv_timer_del(timer);
     boot_timer = NULL;
 
-    desktop_create();
+    // หน่วงนิดเดียวให้เห็นคำว่า System Ready
+    lv_timer_create([](lv_timer_t *t) {
+      lv_timer_del(t);
+      desktop_create();  // โหลดตรง ๆ ไม่ใช้ Fade
+    }, 350, NULL);
   }
 }
 
-/*
-   สร้างหน้า Boot
-*/
 void boot_create() {
-  lv_obj_t *screen = lv_scr_act();
+  boot_scr = lv_obj_create(NULL);
+  theme_apply_screen(boot_scr);
 
-  lv_obj_set_style_bg_color(screen, C_BG, 0);
-  lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
-
-  // Panel กลางจอ
-  lv_obj_t *panel = lv_obj_create(screen);
-  lv_obj_set_size(panel, 400, 220);
-  lv_obj_center(panel);
-
-  lv_obj_set_style_radius(panel, 18, 0);
-  lv_obj_set_style_bg_color(panel, C_PANEL, 0);
-  lv_obj_set_style_border_color(panel, C_BLUE, 0);
-  lv_obj_set_style_border_width(panel, 2, 0);
-  lv_obj_set_style_shadow_width(panel, 24, 0);
-  lv_obj_set_style_shadow_color(panel, C_BLUE_DARK, 0);
-
-  // Title
-  lv_obj_t *title = lv_label_create(panel);
+  lv_obj_t *title = lv_label_create(boot_scr);
   lv_label_set_text(title, "TeYoMaRu OS");
-  lv_obj_set_style_text_color(title, C_BLUE, 0);
   lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 28);
+  lv_obj_set_style_text_color(title, COLOR_TEXT, 0);
+  lv_obj_align(title, LV_ALIGN_CENTER, 0, -45);
 
-  // Status
-  status_label = lv_label_create(panel);
-  lv_label_set_text(status_label, "Starting display engine...");
-  lv_obj_set_style_text_color(status_label, lv_color_hex(0xE5E7EB), 0);
-  lv_obj_set_style_text_font(status_label, &lv_font_montserrat_16, 0);
-  lv_obj_align(status_label, LV_ALIGN_TOP_MID, 0, 78);
+  lv_obj_t *os = lv_label_create(boot_scr);
+  lv_label_set_text(os, "OS");
+  lv_obj_set_style_text_font(os, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(os, COLOR_PRIMARY, 0);
+  lv_obj_align_to(os, title, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
 
-  // Progress bar
-  boot_bar = lv_bar_create(panel);
-  lv_obj_set_size(boot_bar, 300, 18);
-  lv_obj_align(boot_bar, LV_ALIGN_TOP_MID, 0, 128);
+  percent_label = lv_label_create(boot_scr);
+  lv_label_set_text(percent_label, "0%");
+  theme_apply_label(percent_label, false);
+  lv_obj_align(percent_label, LV_ALIGN_CENTER, 0, 10);
+
+  boot_bar = lv_bar_create(boot_scr);
+  lv_obj_set_size(boot_bar, 225, 12);
+  lv_obj_align(boot_bar, LV_ALIGN_CENTER, 0, 38);
   lv_bar_set_range(boot_bar, 0, 100);
   lv_bar_set_value(boot_bar, 0, LV_ANIM_OFF);
+  lv_obj_set_style_bg_color(boot_bar, COLOR_PANEL, 0);
+  lv_obj_set_style_border_color(boot_bar, COLOR_BORDER, 0);
+  lv_obj_set_style_border_width(boot_bar, 1, 0);
+  lv_obj_set_style_radius(boot_bar, 4, 0);
+  lv_obj_set_style_bg_color(boot_bar, COLOR_PRIMARY, LV_PART_INDICATOR);
+  lv_obj_set_style_radius(boot_bar, 3, LV_PART_INDICATOR);
 
-  lv_obj_set_style_radius(boot_bar, 9, LV_PART_MAIN);
-  lv_obj_set_style_radius(boot_bar, 9, LV_PART_INDICATOR);
-  lv_obj_set_style_bg_color(boot_bar, lv_color_hex(0x1F2937), LV_PART_MAIN);
-  lv_obj_set_style_bg_color(boot_bar, C_BLUE, LV_PART_INDICATOR);
+  info_label = lv_label_create(boot_scr);
+  lv_label_set_text(info_label, "Starting...");
+  theme_apply_small_label(info_label, false);
+  lv_obj_set_style_text_color(info_label, COLOR_ORANGE, 0);
+  lv_obj_align(info_label, LV_ALIGN_CENTER, 0, 68);
 
-  // Percent
-  percent_label = lv_label_create(panel);
-  lv_label_set_text(percent_label, "0%");
-  lv_obj_set_style_text_color(percent_label, C_TEXT, 0);
-  lv_obj_set_style_text_font(percent_label, &lv_font_montserrat_18, 0);
-  lv_obj_align(percent_label, LV_ALIGN_TOP_MID, 0, 158);
+  lv_obj_t *dots = lv_label_create(boot_scr);
+  lv_label_set_text(dots, ".  .  .");
+  lv_obj_set_style_text_color(dots, COLOR_PRIMARY, 0);
+  lv_obj_set_style_text_font(dots, &lv_font_montserrat_18, 0);
+  lv_obj_align(dots, LV_ALIGN_BOTTOM_MID, 0, -14);
 }
 
-/*
-   เริ่ม Boot Timer
-*/
 void boot_start() {
-  boot_percent = 0;
+  boot_value = 0;
+  lv_scr_load(boot_scr);
+
+  if (boot_timer != NULL) {
+    lv_timer_del(boot_timer);
+    boot_timer = NULL;
+  }
+
   boot_timer = lv_timer_create(boot_timer_cb, 80, NULL);
 }

@@ -1,23 +1,24 @@
 #include <Arduino.h>
-#include "core/display.h"
+#include "core/ui.h"
 #include "pages/boot.h"
 
-#define TFT_BL 15
+/* ======================================================
+   TeYoMaRu OS v0.2 Yellow Edition
+   ESP32 + TFT_eSPI + LVGL
+
+   วิธีทำงาน:
+   1. ui_init()      เตรียมจอ + LVGL
+   2. boot_create()  สร้างหน้า Boot
+   3. boot_start()   เริ่มโหลด Progress
+   4. ครบ 100% เข้า Desktop แบบไม่ Fade เพื่อลดกระตุก
+====================================================== */
 
 void setup() {
-  Serial.begin(115200);
-  delay(300);
-
-  Serial.println("TeYoMaRu OS Start");
-
-
-  display_init();
+  ui_init();
   boot_create();
   boot_start();
 }
 
 void loop() {
-  lv_timer_handler();
-  delay(5);
-  lv_tick_inc(5);
+  ui_loop();
 }
