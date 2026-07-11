@@ -3,7 +3,7 @@
 
 lv_obj_t *statusbar_create(lv_obj_t *parent) {
   lv_obj_t *bar = lv_obj_create(parent);
-  lv_obj_set_size(bar, 320, 26);
+  lv_obj_set_size(bar, LV_PCT(100), 26);   // เต็มความกว้างจอ (480px) แทนที่จะ fix ไว้ที่ 320
   lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
   lv_obj_set_style_bg_color(bar, COLOR_BG, 0);
   lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);

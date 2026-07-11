@@ -6,7 +6,7 @@
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 0
 #define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (32U * 1024U)
+#define LV_MEM_SIZE (48U * 1024U)   // ตาม README (48 KB) ให้พอสำหรับ widget ที่เพิ่มเข้ามา
 #define LV_TICK_CUSTOM 0
 #define LV_USE_LOG 0
 #define LV_USE_ASSERT_NULL 0

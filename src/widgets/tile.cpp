@@ -1,25 +1,45 @@
 #include "tile.h"
 #include "../core/theme.h"
 #include <cstring>
+#include <cstdlib>
+
+/* ======================================================
+   tile.cpp  –  TeYoMaRu OS
+
+   แก้ไข: ใช้ lv_mem_alloc() จัดสรร TileData ต่อ tile
+   แทน static array เพื่อป้องกัน pointer ถูกทับ
+   เมื่อ Desktop ถูกสร้างซ้ำ (กด Back จาก app ต่าง ๆ)
+====================================================== */
 
 struct TileData {
   const char *title;
   TileClickHandler cb;
 };
 
-static TileData tile_data[8];
-static int tile_count = 0;
-
+/* event callback: อ่าน TileData จาก user_data */
 static void tile_event_cb(lv_event_t *e) {
   TileData *data = (TileData *)lv_event_get_user_data(e);
   if (data && data->cb) data->cb(data->title);
 }
 
-lv_obj_t *tile_create(lv_obj_t *parent, int x, int y, const char *icon, const char *title, TileClickHandler cb) {
-  if (tile_count >= 8) tile_count = 0;
+/*
+   คืน memory ของ TileData เมื่อ LVGL ลบ object นั้น
+   ป้องกัน memory leak เมื่อ Desktop ถูกสร้างซ้ำ
+*/
+static void tile_delete_cb(lv_event_t *e) {
+  TileData *data = (TileData *)lv_event_get_user_data(e);
+  if (data) lv_mem_free(data);
+}
 
-  tile_data[tile_count].title = title;
-  tile_data[tile_count].cb = cb;
+lv_obj_t *tile_create(lv_obj_t *parent, int x, int y,
+                       const char *icon, const char *title,
+                       TileClickHandler cb) {
+
+  /* จัดสรร TileData ใหม่ทุกครั้ง → pointer ไม่ซ้ำกัน */
+  TileData *data = (TileData *)lv_mem_alloc(sizeof(TileData));
+  if (!data) return NULL;
+  data->title = title;
+  data->cb    = cb;
 
   lv_obj_t *box = lv_obj_create(parent);
   lv_obj_set_size(box, 62, 62);
@@ -28,7 +48,10 @@ lv_obj_t *tile_create(lv_obj_t *parent, int x, int y, const char *icon, const ch
   lv_obj_set_style_bg_color(box, COLOR_PANEL_2, 0);
   lv_obj_set_style_border_color(box, COLOR_PRIMARY, 0);
   lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(box, tile_event_cb, LV_EVENT_CLICKED, &tile_data[tile_count]);
+
+  /* ลงทะเบียน event clicked + delete (เพื่อ free memory) */
+  lv_obj_add_event_cb(box, tile_event_cb,   LV_EVENT_CLICKED, data);
+  lv_obj_add_event_cb(box, tile_delete_cb,  LV_EVENT_DELETE,  data);
 
   lv_obj_t *icon_label = lv_label_create(box);
   lv_label_set_text(icon_label, icon);
@@ -41,6 +64,5 @@ lv_obj_t *tile_create(lv_obj_t *parent, int x, int y, const char *icon, const ch
   theme_apply_small_label(name, false);
   lv_obj_align(name, LV_ALIGN_BOTTOM_MID, 0, -2);
 
-  tile_count++;
   return box;
 }
