@@ -58,11 +58,16 @@ lv_obj_t *tile_create(lv_obj_t *parent, int x, int y,
   lv_obj_set_style_text_color(icon_label, COLOR_PRIMARY, 0);
   lv_obj_set_style_text_font(icon_label, &lv_font_montserrat_24, 0);
   lv_obj_align(icon_label, LV_ALIGN_TOP_MID, 0, 1);
+  // ป้องกัน label บัง touch ของ box
+  lv_obj_clear_flag(icon_label, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(icon_label,  LV_OBJ_FLAG_EVENT_BUBBLE);
 
   lv_obj_t *name = lv_label_create(box);
   lv_label_set_text(name, title);
   theme_apply_small_label(name, false);
   lv_obj_align(name, LV_ALIGN_BOTTOM_MID, 0, -2);
+  lv_obj_clear_flag(name, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(name,  LV_OBJ_FLAG_EVENT_BUBBLE);
 
   return box;
 }

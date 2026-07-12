@@ -1,19 +1,69 @@
 #include <Arduino.h>
+#include <SPI.h>
 #include "core/ui.h"
 #include "pages/boot.h"
 
-/* ======================================================
-   TeYoMaRu OS v0.2 Yellow Edition
-   ESP32 + TFT_eSPI + LVGL
+// ── ทดสอบ XPT2046 แบบละเอียด ──────────────────────────
+#define T_CS   22
+#define T_CLK  18
+#define T_MOSI 23
+#define T_MISO 19   // ← ลองเปลี่ยนเป็น 34 หรือ 35 ถ้าไม่ผ่าน
 
-   วิธีทำงาน:
-   1. ui_init()      เตรียมจอ + LVGL
-   2. boot_create()  สร้างหน้า Boot
-   3. boot_start()   เริ่มโหลด Progress
-   4. ครบ 100% เข้า Desktop แบบไม่ Fade เพื่อลดกระตุก
-====================================================== */
+static SPIClass vspi(VSPI);
+
+static uint16_t xpt_read(uint8_t cmd) {
+  digitalWrite(T_CS, LOW);
+  delayMicroseconds(50);
+  vspi.transfer(cmd);
+  delayMicroseconds(10);
+  uint16_t hi = vspi.transfer(0);
+  uint16_t lo = vspi.transfer(0);
+  digitalWrite(T_CS, HIGH);
+  return ((hi << 8) | lo) >> 3;
+}
+
+static void test_touch() {
+  Serial.println("\n=== XPT2046 DIAGNOSTIC ===");
+
+  // ตรวจ MISO ว่าลอยหรือไม่
+  pinMode(T_MISO, INPUT);
+  int v = digitalRead(T_MISO);
+  Serial.printf("MISO GPIO%d idle = %s %s\n",
+    T_MISO, v ? "HIGH" : "LOW",
+    v ? "(ปกติ pull-up)" : "(ลอย หรือ GND)");
+
+  // init SPI
+  vspi.begin(T_CLK, T_MISO, T_MOSI, T_CS);
+  vspi.setFrequency(1000000);  // 1MHz ช้าๆ ให้เสถียร
+  vspi.setDataMode(SPI_MODE0);
+  pinMode(T_CS, OUTPUT);
+  digitalWrite(T_CS, HIGH);
+  delay(10);
+
+  // อ่าน 10 ครั้ง
+  bool any_nonzero = false;
+  for (int i = 0; i < 10; i++) {
+    uint16_t x = xpt_read(0x90); // X
+    uint16_t y = xpt_read(0xD0); // Y
+    uint16_t z = xpt_read(0xB0); // Z pressure
+    Serial.printf("  [%d] X=%4d  Y=%4d  Z=%4d\n", i, x, y, z);
+    if (x != 0 && x != 4095) any_nonzero = true;
+    delay(100);
+  }
+
+  if (any_nonzero)
+    Serial.println(">> SPI ทำงาน! ลองแตะจอตอนนี้");
+  else
+    Serial.println("!! ยังได้ 0/4095 → เช็คสายอีกครั้ง");
+
+  Serial.println("===========================\n");
+}
 
 void setup() {
+  Serial.begin(115200);
+  delay(500);
+  test_touch();
+
   ui_init();
   boot_create();
   boot_start();
