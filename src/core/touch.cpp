@@ -1,65 +1,129 @@
 #include "touch.h"
 #include "display.h"
+
+#include <Arduino.h>
 #include <lvgl.h>
 #include <XPT2046_Touchscreen.h>
-#include <Arduino.h>
 
+/* =========================================================
+   TeYoMaRu OS - XPT2046 Touch Driver
+
+   การต่อสายจริง
+   ---------------------------------------------------------
+   T_CS   -> GPIO22
+   T_IRQ  -> GPIO21
+   T_CLK  -> GPIO18
+   T_DIN  -> GPIO23
+   T_DO   -> GPIO19
+
+   ผลการทดสอบ 4 มุมของจอจริง
+   ---------------------------------------------------------
+   ซ้ายบน   : raw X ≈ 3510, raw Y ≈ 280
+   ขวาบน    : raw X ≈ 3550, raw Y ≈ 3650
+   ซ้ายล่าง : raw X ≈ 550,  raw Y ≈ 315
+   ขวาล่าง  : raw X ≈ 500,  raw Y ≈ 3700
+
+   สรุป:
+   - แกนหน้าจอ X ต้องอ่านจาก raw Y
+   - แกนหน้าจอ Y ต้องอ่านจาก raw X
+   - แกน Y ต้องกลับทิศ
+   ========================================================= */
+
+// ขาควบคุมระบบ Touch
 #define TOUCH_CS   22
-#define TOUCH_IRQ  21   // ← ต้องต่อสาย T_IRQ → GPIO21
+#define TOUCH_IRQ  21
 
-// Calibration: ปรับตามค่า raw จริงที่กดมุมจอ
-// จาก log ที่เห็น x raw ~508..3520, y raw ~12..507
-// แต่จอหมุน 90° ดังนั้น x↔y สลับกัน
-#define TOUCH_X_MIN   400
-#define TOUCH_X_MAX  3600
-#define TOUCH_Y_MIN   200
-#define TOUCH_Y_MAX  3800
+// ค่าคาลิเบรตจากจอจริง
+#define TOUCH_RAW_X_TOP     3535
+#define TOUCH_RAW_X_BOTTOM   500
 
-// กดซ้ำต้องขยับ > 10px จึงถือว่า event ใหม่
-#define MOVE_THRESHOLD 10
+#define TOUCH_RAW_Y_LEFT     290
+#define TOUCH_RAW_Y_RIGHT   3700
 
-static XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
+// ค่าความแรงกดขั้นต่ำ
+#define TOUCH_MIN_PRESSURE 200
 
-static int16_t _last_x = -1, _last_y = -1;
+static XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
 
-static void my_touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
-  // IRQ mode: ts.tirqTouched() เร็วกว่า ts.touched() มาก
-  if (!ts.tirqTouched() || !ts.touched()) {
-    data->state = LV_INDEV_STATE_RELEASED;
-    _last_x = _last_y = -1;
-    return;
-  }
+/* =========================================================
+   อ่านตำแหน่ง Touch ให้ LVGL
+   ========================================================= */
+static void touch_read_cb(
+  lv_indev_drv_t *indev_drv,
+  lv_indev_data_t *data
+) {
+  (void)indev_drv;
 
-  TS_Point p = ts.getPoint();
-
-  // กรอง noise: z ต้องอยู่ในช่วงที่สมเหตุสมผล
-  if (p.z < 200 || p.z > 4090) {
+  if (!touch.touched()) {
     data->state = LV_INDEV_STATE_RELEASED;
     return;
   }
 
-  // จอ rotation=1 (landscape) → x และ y ของ touch สลับกัน
-  int16_t x = map(p.x, TOUCH_X_MIN, TOUCH_X_MAX, 0, SCREEN_WIDTH  - 1);
-  int16_t y = map(p.y, TOUCH_Y_MIN, TOUCH_Y_MAX, 0, SCREEN_HEIGHT - 1);
-  x = constrain(x, 0, SCREEN_WIDTH  - 1);
-  y = constrain(y, 0, SCREEN_HEIGHT - 1);
+  TS_Point point = touch.getPoint();
 
-  Serial.printf("[TOUCH] x=%d y=%d (raw %d,%d z=%d)\n", x, y, p.x, p.y, p.z);
+  if (point.z < TOUCH_MIN_PRESSURE || point.z >= 4095) {
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
 
-  data->point.x = x;
-  data->point.y = y;
+  /*
+    จอแนวนอน 480 × 320
+
+    screen_x ใช้ raw Y:
+      ซ้าย  ≈ 290
+      ขวา   ≈ 3700
+
+    screen_y ใช้ raw X และกลับทิศ:
+      บน    ≈ 3535
+      ล่าง  ≈ 500
+  */
+  int16_t screen_x = map(
+    point.y,
+    TOUCH_RAW_Y_LEFT,
+    TOUCH_RAW_Y_RIGHT,
+    0,
+    SCREEN_WIDTH - 1
+  );
+
+  int16_t screen_y = map(
+    point.x,
+    TOUCH_RAW_X_TOP,
+    TOUCH_RAW_X_BOTTOM,
+    0,
+    SCREEN_HEIGHT - 1
+  );
+
+  screen_x = constrain(screen_x, 0, SCREEN_WIDTH - 1);
+  screen_y = constrain(screen_y, 0, SCREEN_HEIGHT - 1);
+
+  data->point.x = screen_x;
+  data->point.y = screen_y;
   data->state   = LV_INDEV_STATE_PRESSED;
+
+  Serial.printf(
+    "[TOUCH] x=%d y=%d (raw %d,%d z=%d)\n",
+    screen_x,
+    screen_y,
+    point.x,
+    point.y,
+    point.z
+  );
 }
 
+/* =========================================================
+   เริ่มระบบ Touch
+   ========================================================= */
 void touch_init() {
-  ts.begin();
-  ts.setRotation(1);
+  touch.begin();
 
   static lv_indev_drv_t indev_drv;
   lv_indev_drv_init(&indev_drv);
+
   indev_drv.type    = LV_INDEV_TYPE_POINTER;
-  indev_drv.read_cb = my_touch_read;
+  indev_drv.read_cb = touch_read_cb;
+
   lv_indev_drv_register(&indev_drv);
 
-  Serial.println("[TOUCH] ready (IRQ mode GPIO21)");
+  Serial.println("[TOUCH] ready  CS=GPIO22  IRQ=GPIO21");
+  Serial.println("[TOUCH] axes swapped: screen X=rawY, screen Y=rawX reversed");
 }
