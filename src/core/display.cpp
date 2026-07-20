@@ -3,20 +3,18 @@
 
 static TFT_eSPI tft = TFT_eSPI();
 
-// LVGL draw buffer  (2 แถว × 480px × 2 bytes ต่อ pixel × 10)
+// Buffer 10 แถว รองรับทั้ง 480x320 และ 320x480
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf1[SCREEN_WIDTH * 10];
+static lv_disp_drv_t disp_drv;
+static bool disp_registered = false;
+static bool portrait_mode = false;
 
-/*
-  ILI9488 ต้องการข้อมูล 18-bit (RGB666) แต่ LVGL ส่ง RGB565
-  pushColors ของ TFT_eSPI จะ convert ให้อัตโนมัติเมื่อใช้ pushPixels
-  แต่ถ้าใช้ pushColors((uint16_t*)…) กับ ILI9488 จะสีผิด
-  วิธีแก้: ใช้ tft.pushPixelsDMA หรือ loop writeColor ทีละ pixel
-  ─── แก้ flush ให้แปลง RGB565 → RGB888 ก่อนส่ง ───
-*/
-static void my_disp_flush(lv_disp_drv_t *disp,
-                           const lv_area_t *area,
-                           lv_color_t *color_p) {
+static void my_disp_flush(
+  lv_disp_drv_t *disp,
+  const lv_area_t *area,
+  lv_color_t *color_p
+) {
   uint32_t w = area->x2 - area->x1 + 1;
   uint32_t h = area->y2 - area->y1 + 1;
   uint32_t n = w * h;
@@ -24,8 +22,6 @@ static void my_disp_flush(lv_disp_drv_t *disp,
   tft.startWrite();
   tft.setAddrWindow(area->x1, area->y1, w, h);
 
-  // ส่ง pixel ทีละตัว: TFT_eSPI จะแปลง 16-bit → 18-bit ให้
-  // (writeColor ใช้ SPI transaction เดียว ไม่ช้ามาก)
   for (uint32_t i = 0; i < n; i++) {
     tft.writeColor(color_p->full, 1);
     color_p++;
@@ -35,11 +31,32 @@ static void my_disp_flush(lv_disp_drv_t *disp,
   lv_disp_flush_ready(disp);
 }
 
+static void apply_orientation(bool portrait) {
+  portrait_mode = portrait;
+
+  if (portrait_mode) {
+    tft.setRotation(0);       // 320x480
+    disp_drv.hor_res = 320;
+    disp_drv.ver_res = 480;
+  } else {
+    tft.setRotation(1);       // 480x320
+    disp_drv.hor_res = 480;
+    disp_drv.ver_res = 320;
+  }
+
+  if (disp_registered) {
+    lv_disp_drv_update(lv_disp_get_default(), &disp_drv);
+    lv_obj_invalidate(lv_scr_act());
+  }
+
+  tft.fillScreen(TFT_BLACK);
+}
+
 void display_init() {
   display_backlight_on();
 
-  tft.begin();           // init SPI + IC
-  tft.setRotation(1);    // 0=Portrait, 1=Landscape 480×320
+  tft.begin();
+  tft.setRotation(1);
   tft.invertDisplay(false);
   tft.fillScreen(TFT_BLACK);
 
@@ -47,13 +64,27 @@ void display_init() {
 
   lv_disp_draw_buf_init(&draw_buf, buf1, NULL, SCREEN_WIDTH * 10);
 
-  static lv_disp_drv_t disp_drv;
   lv_disp_drv_init(&disp_drv);
-  disp_drv.hor_res  = SCREEN_WIDTH;   // 480
-  disp_drv.ver_res  = SCREEN_HEIGHT;  // 320
+  disp_drv.hor_res  = SCREEN_WIDTH;
+  disp_drv.ver_res  = SCREEN_HEIGHT;
   disp_drv.flush_cb = my_disp_flush;
   disp_drv.draw_buf = &draw_buf;
+
   lv_disp_drv_register(&disp_drv);
+  disp_registered = true;
+  portrait_mode = false;
+}
+
+void display_set_landscape() {
+  apply_orientation(false);
+}
+
+void display_set_portrait() {
+  apply_orientation(true);
+}
+
+bool display_is_portrait() {
+  return portrait_mode;
 }
 
 void display_backlight_on() {

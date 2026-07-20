@@ -1,22 +1,22 @@
-#ifndef DISPLAY_H
-#define DISPLAY_H
+#pragma once
 
+#include <Arduino.h>
 #include <lvgl.h>
 
-// ขนาดจอหลังหมุนแนวนอน
+// ขนาดจอเมื่อวางแนวนอน
 #define SCREEN_WIDTH  480
 #define SCREEN_HEIGHT 320
 
-// ขา Backlight ของจอ
+// ปรับให้ตรงกับขา Backlight ของโปรเจกต์เดิม
+#ifndef TFT_BL
 #define TFT_BL 15
+#endif
 
-// ฟังก์ชันเริ่มต้นระบบจอทั้งหมด
 void display_init();
-
-// เปิดไฟ Backlight
 void display_backlight_on();
-
-// ปิดไฟ Backlight
 void display_backlight_off();
 
-#endif
+// ใช้หมุนเฉพาะหน้า QR
+void display_set_landscape();
+void display_set_portrait();
+bool display_is_portrait();
