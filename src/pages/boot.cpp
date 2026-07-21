@@ -2,10 +2,81 @@
 #include "desktop.h"
 #include "../core/theme.h"
 #include "../assets/teyomaru_logo.h"
+#include "../assets/fonts/teyomaru_fonts.h"
 
 
 #include <lvgl.h>
 #include <cstdio>
+
+/* ======================================================
+   คู่มือปรับตำแหน่งและขนาดบนหน้าบูท
+   ======================================================
+
+   หลักการสำคัญของ LVGL ที่ใช้ในไฟล์นี้
+
+   1) lv_obj_set_pos(object, x, y);
+      - x = ระยะจากด้านซ้ายของจอ
+      - y = ระยะจากด้านบนของจอ
+      - x มากขึ้น  -> ขยับไปทางขวา
+      - x น้อยลง   -> ขยับไปทางซ้าย
+      - y มากขึ้น  -> ขยับลง
+      - y น้อยลง   -> ขยับขึ้น
+
+   2) lv_obj_align(object, จุดอ้างอิง, x_offset, y_offset);
+      ตัวอย่าง:
+      lv_obj_align(main_title, LV_ALIGN_TOP_MID, 0, 95);
+
+      - LV_ALIGN_TOP_MID = อ้างอิงกึ่งกลางด้านบนของจอ
+      - ค่า 0            = ไม่ขยับซ้าย/ขวา
+      - ค่า 95           = ระยะจากด้านบนของจอ
+
+      หากต้องการขยับข้อความขึ้น:
+      95 -> 85
+
+      หากต้องการขยับข้อความลง:
+      95 -> 105
+
+   3) lv_img_set_zoom(image, zoom);
+      ใช้ปรับขนาดรูปภาพ
+
+      - 256 = 100%
+      - 192 = 75%
+      - 160 = 62.5%
+      - 128 = 50%
+
+      ตัวเลขมากขึ้น = รูปใหญ่ขึ้น
+      ตัวเลขน้อยลง  = รูปเล็กลง
+
+   4) การเปลี่ยนขนาดตัวอักษร
+      เปลี่ยนชื่อ Font ที่ส่งให้ create_label()
+
+      ตัวอย่าง:
+      &font_teyomaru_20  = ตัวใหญ่
+      &font_teyomaru_10  = ตัวเล็ก
+
+   จุดที่แก้บ่อยในไฟล์นี้
+
+   - โลโก้:
+     ค้นหา "lv_img_set_zoom" และ "logo_img"
+
+   - คำว่า TeYoMaRu OS:
+     ค้นหา "main_title"
+
+   - คำว่า PERSONAL LAUNCHER:
+     ค้นหา "sub_title"
+
+   - ข้อความสีแดงสถานะระบบ:
+     ค้นหา "boot_message"
+
+   - รายการ DISPLAY / TOUCH / UI ENGINE:
+     ค้นหา "status_display"
+
+   - ตัวเลขเปอร์เซ็นต์:
+     ค้นหา "percent_label"
+
+   - แถบโหลด:
+     ค้นหา "boot_bar"
+====================================================== */
 
 /* ======================================================
    TeYoMaRu OS - Cyber Boot Screen
@@ -272,7 +343,7 @@ static lv_obj_t *create_status_row(
     lv_obj_t *name_label = create_label(
         parent,
         name,
-        &lv_font_montserrat_14,
+        &font_teyomaru_10,
         BOOT_WHITE
     );
 
@@ -286,7 +357,7 @@ static lv_obj_t *create_status_row(
     lv_obj_t *status = create_label(
         parent,
         "WAIT",
-        &lv_font_montserrat_14,
+        &font_teyomaru_10,
         BOOT_GREY
     );
 
@@ -604,7 +675,7 @@ void boot_create() {
     lv_obj_t *header_title = create_label(
         boot_scr,
         "TeYoMaRu OS",
-        &lv_font_montserrat_14,
+        &font_teyomaru_10,
         BOOT_WHITE
     );
 
@@ -618,7 +689,7 @@ void boot_create() {
     lv_obj_t *version = create_label(
         boot_scr,
         "v1.0.0",
-        &lv_font_montserrat_12,
+        &font_teyomaru_10,
         BOOT_WHITE
     );
 
@@ -670,14 +741,46 @@ void boot_create() {
     );
 
     /*
-       วางโลโก้ไว้กึ่งกลางด้านบน
-       ปรับตำแหน่งแกน Y ได้จากค่าตัวสุดท้าย
+       ============================
+       ปรับขนาดโลโก้ตรงนี้
+       ============================
+
+       ค่า Zoom ของ LVGL:
+       256 = 100% ขนาดเดิม
+       192 = 75%
+       160 = 62.5%
+       130 = ประมาณ 51%
+       128 = 50%
+
+       วิธีแก้:
+       - โลโก้ใหญ่เกินไป  -> ลดเลข 130 ลง เช่น 115
+       - โลโก้เล็กเกินไป  -> เพิ่มเลข 130 ขึ้น เช่น 145
+    */
+    lv_img_set_zoom(
+        logo_img,
+        130
+    );
+
+    /*
+       ============================
+       ปรับตำแหน่งโลโก้ตรงนี้
+       ============================
+
+       LV_ALIGN_TOP_MID = ยึดกึ่งกลางด้านบนของจอ
+       ค่า 0  = ตำแหน่งซ้าย/ขวา
+       ค่า 20 = ตำแหน่งขึ้น/ลง
+
+       วิธีแก้:
+       - ขยับโลโก้ขึ้น   -> ลด 20 เช่น 10
+       - ขยับโลโก้ลง    -> เพิ่ม 20 เช่น 30
+       - ขยับไปทางซ้าย  -> เปลี่ยน 0 เป็นค่าติดลบ เช่น -10
+       - ขยับไปทางขวา   -> เปลี่ยน 0 เป็นค่าบวก เช่น 10
     */
     lv_obj_align(
         logo_img,
         LV_ALIGN_TOP_MID,
         0,
-        31
+        20
     );
 
     /* ป้องกันรูปภาพรับการกด */
@@ -687,13 +790,33 @@ void boot_create() {
     );
 
     /* --------------------------------------------------
-       ชื่อระบบ
+       ชื่อระบบใต้โลโก้
     -------------------------------------------------- */
 
+    /*
+       ============================
+       ชื่อหลัก: TeYoMaRu OS
+       ============================
+
+       จุดแก้ขนาดตัวอักษร:
+       &font_teyomaru_20
+
+       วิธีแก้:
+       - ตัวใหญ่เกินไป -> เปลี่ยนเป็น &font_teyomaru_14
+       - ต้องการตัวใหญ่ -> ใช้ &font_teyomaru_20
+
+       จุดแก้ตำแหน่ง:
+       lv_obj_align(..., 0, 95);
+
+       - 95 น้อยลง = ขยับขึ้น
+       - 95 มากขึ้น = ขยับลง
+       - ค่า 0 เปลี่ยนเป็นค่าติดลบ = ขยับซ้าย
+       - ค่า 0 เปลี่ยนเป็นค่าบวก  = ขยับขวา
+    */
     lv_obj_t *main_title = create_label(
         boot_scr,
         "TeYoMaRu OS",
-        &lv_font_montserrat_24,
+        &font_teyomaru_20,
         BOOT_WHITE
     );
 
@@ -701,40 +824,82 @@ void boot_create() {
         main_title,
         LV_ALIGN_TOP_MID,
         0,
-        82
+        105
     );
 
     /*
-       LVGL 8.4 ไม่มีคำสั่ง:
-       lv_obj_set_style_text_outline_color()
-       lv_obj_set_style_text_outline_width()
+       ============================
+       ชื่อรอง: PERSONAL LAUNCHER
+       ============================
 
-       จึงไม่ใช้ Text Outline ในส่วนนี้
+       ขนาดตัวอักษร:
+       &font_teyomaru_10
+
+       ตำแหน่ง:
+       lv_obj_align(..., 0, 121);
+
+       วิธีแก้:
+       - ขยับขึ้น -> ลด 121 เช่น 112
+       - ขยับลง  -> เพิ่ม 121 เช่น 130
+
+       ระยะห่างจาก TeYoMaRu OS:
+       main_title อยู่ที่ 95
+       sub_title  อยู่ที่ 121
+       ระยะห่างประมาณ 26 px
+
+       หากข้อความซ้อนกัน:
+       - เพิ่มค่า sub_title เช่น 126
+       หรือ
+       - ลดค่า main_title เช่น 90
     */
-
-    /* Subtitle */
-    lv_obj_t *subtitle = create_label(
+    lv_obj_t *sub_title = create_label(
         boot_scr,
         "PERSONAL LAUNCHER",
-        &lv_font_montserrat_12,
+        &font_teyomaru_10,
         BOOT_RED
     );
 
     lv_obj_align(
-        subtitle,
+        sub_title,
         LV_ALIGN_TOP_MID,
         0,
-        110
+        131
     );
 
     /* --------------------------------------------------
        ข้อความสถานะหลัก
+       ย้ายลงไปไว้ใต้ Progress Bar
     -------------------------------------------------- */
 
+    /*
+       ============================
+       ข้อความสถานะสีแดงด้านล่าง
+       ============================
+
+       ข้อความนี้จะเปลี่ยนอัตโนมัติตามเปอร์เซ็นต์
+       เช่น:
+       SYSTEM INITIALIZING...
+       CHECKING DISPLAY...
+       STARTING TOUCH DRIVER...
+       LOADING UI ENGINE...
+       LOADING SYSTEM PAGES...
+       SYSTEM READY
+
+       ตำแหน่งปัจจุบัน:
+       y = 279
+
+       วิธีแก้:
+       - ขยับขึ้น -> ลด 279 เช่น 270
+       - ขยับลง  -> เพิ่ม 279 เช่น 288
+
+       ระวัง:
+       จอสูง 320 px
+       หากใช้ค่าเกินประมาณ 295 อาจตกขอบ
+    */
     boot_message = create_label(
         boot_scr,
         "SYSTEM INITIALIZING...",
-        &lv_font_montserrat_14,
+        &font_teyomaru_10,
         BOOT_RED
     );
 
@@ -742,104 +907,61 @@ void boot_create() {
         boot_message,
         LV_ALIGN_TOP_MID,
         0,
-        132
-    );
-
-    /* เส้นซ้ายของข้อความสถานะ */
-    lv_obj_t *message_line_left =
-        lv_obj_create(boot_scr);
-
-    lv_obj_remove_style_all(
-        message_line_left
-    );
-
-    lv_obj_set_size(
-        message_line_left,
-        70,
-        1
-    );
-
-    lv_obj_set_pos(
-        message_line_left,
-        40,
-        142
-    );
-
-    lv_obj_set_style_bg_color(
-        message_line_left,
-        BOOT_RED_DARK,
-        0
-    );
-
-    lv_obj_set_style_bg_opa(
-        message_line_left,
-        LV_OPA_COVER,
-        0
-    );
-
-    /* เส้นขวาของข้อความสถานะ */
-    lv_obj_t *message_line_right =
-        lv_obj_create(boot_scr);
-
-    lv_obj_remove_style_all(
-        message_line_right
-    );
-
-    lv_obj_set_size(
-        message_line_right,
-        70,
-        1
-    );
-
-    lv_obj_set_pos(
-        message_line_right,
-        370,
-        142
-    );
-
-    lv_obj_set_style_bg_color(
-        message_line_right,
-        BOOT_RED_DARK,
-        0
-    );
-
-    lv_obj_set_style_bg_opa(
-        message_line_right,
-        LV_OPA_COVER,
-        0
+        319
     );
 
     /* --------------------------------------------------
        รายการสถานะระบบ
     -------------------------------------------------- */
 
+    /*
+       ============================
+       ตำแหน่งรายการสถานะระบบ
+       ============================
+
+       ตัวเลขตัวที่ 2 คือแกน Y ของแต่ละแถว
+
+       DISPLAY   = 122
+       TOUCH     = 142
+       UI ENGINE = 162
+       MEMORY    = 182
+       PAGES     = 202
+
+       วิธีขยับทั้งชุด:
+       - ขยับขึ้น 10 px -> ลบทุกค่าด้วย 10
+         122,142,162,182,202
+         เปลี่ยนเป็น
+         112,132,152,172,192
+
+       - ขยับลง 10 px -> บวกทุกค่าด้วย 10
+    */
     status_display = create_status_row(
         boot_scr,
-        154,
+        152,
         "DISPLAY"
     );
 
     status_touch = create_status_row(
         boot_scr,
-        175,
+        172,
         "TOUCH"
     );
 
     status_ui = create_status_row(
         boot_scr,
-        196,
+        192,
         "UI ENGINE"
     );
 
     status_memory = create_status_row(
         boot_scr,
-        217,
+        212,
         "MEMORY"
     );
 
     status_pages = create_status_row(
         boot_scr,
-        238,
+        232,
         "PAGES"
     );
 
@@ -850,7 +972,7 @@ void boot_create() {
     percent_label = create_label(
         boot_scr,
         "0%",
-        &lv_font_montserrat_20,
+        &font_teyomaru_20,
         BOOT_RED
     );
 
@@ -865,10 +987,24 @@ void boot_create() {
         0
     );
 
+    /*
+       ============================
+       ตำแหน่งตัวเลขเปอร์เซ็นต์
+       ============================
+
+       x = 20  ระยะจากซ้าย
+       y = 232 ระยะจากบน
+
+       วิธีแก้:
+       - ขยับขวา -> เพิ่ม 20
+       - ขยับซ้าย -> ลด 20
+       - ขยับลง -> เพิ่ม 232
+       - ขยับขึ้น -> ลด 232
+    */
     lv_obj_set_pos(
         percent_label,
         20,
-        269
+        272
     );
 
     /* --------------------------------------------------
@@ -877,6 +1013,31 @@ void boot_create() {
 
     boot_bar = lv_bar_create(boot_scr);
 
+    /*
+       ============================
+       ขนาดและตำแหน่ง Progress Bar
+       ============================
+
+       lv_obj_set_size(boot_bar, 330, 20);
+       - 330 = ความกว้าง
+       - 20  = ความสูง
+
+       วิธีแก้ขนาด:
+       - ต้องการแถบยาวขึ้น -> เพิ่ม 330
+       - ต้องการแถบสั้นลง -> ลด 330
+       - ต้องการแถบหนาขึ้น -> เพิ่ม 20
+       - ต้องการแถบบางลง -> ลด 20
+
+       lv_obj_set_pos(boot_bar, 102, 234);
+       - 102 = ระยะจากซ้าย
+       - 234 = ระยะจากบน
+
+       วิธีแก้ตำแหน่ง:
+       - ขยับขวา -> เพิ่ม 102
+       - ขยับซ้าย -> ลด 102
+       - ขยับลง -> เพิ่ม 234
+       - ขยับขึ้น -> ลด 234
+    */
     lv_obj_set_size(
         boot_bar,
         330,
@@ -886,7 +1047,7 @@ void boot_create() {
     lv_obj_set_pos(
         boot_bar,
         102,
-        270
+        274
     );
 
     lv_bar_set_range(
@@ -957,23 +1118,7 @@ void boot_create() {
         LV_PART_INDICATOR
     );
 
-    /* --------------------------------------------------
-       ข้อความด้านล่าง
-    -------------------------------------------------- */
-
-    lv_obj_t *bottom_text = create_label(
-        boot_scr,
-        ">>  BOOTING TEYOMARU OS  <<",
-        &lv_font_montserrat_12,
-        BOOT_GREY
-    );
-
-    lv_obj_align(
-        bottom_text,
-        LV_ALIGN_BOTTOM_MID,
-        0,
-        -7
-    );
+    /* ข้อความด้านล่างใช้ boot_message แบบไดนามิกแทน */
 }
 
 /* ======================================================
