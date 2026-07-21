@@ -6,45 +6,196 @@
 #include <lvgl.h>
 
 /* ======================================================
-   Desktop Screen
-   - ไม่ใช้รูป icon เพื่อลด RAM
-   - ใช้ตัวอักษรสั้น ๆ แทน icon ก่อน
-   - กด Tile แล้วเปิดหน้า Coming Soon ได้ทันที
+   TeYoMaRu OS - Desktop / Home Screen
+   สำหรับจอแนวนอน 480 x 320
+
+   รูปแบบหน้าจอ:
+   - Status Bar ด้านบน
+   - แอป 4 คอลัมน์ x 2 แถว
+   - กล่องไอคอนสีน้ำเงิน
+   - ชื่อแอปอยู่ใต้กล่อง
+   - จุดแสดงหน้าด้านล่าง
+
+   วิธีปรับ Layout:
+   - ปรับตำแหน่งทั้งชุดจาก TILE_START_X / TILE_START_Y
+   - ปรับระยะห่างจาก TILE_GAP_X / TILE_GAP_Y
+   - ปรับขนาด Tile ใน tile.cpp
+====================================================== */
+
+/* ======================================================
+   ค่าตำแหน่ง Desktop
+   แก้ Layout หลักจากส่วนนี้ได้เลย
+====================================================== */
+
+/* จุดเริ่มต้นของ Tile คอลัมน์แรก */
+#define TILE_START_X  47
+
+/* จุดเริ่มต้นของ Tile แถวแรก */
+#define TILE_START_Y  58
+
+/* ระยะห่างแนวนอนระหว่าง Tile */
+#define TILE_GAP_X    99
+
+/* ระยะห่างแนวตั้งระหว่าง Tile */
+#define TILE_GAP_Y    109
+
+/* ======================================================
+   Event เมื่อกด Tile
 ====================================================== */
 
 static void on_tile_click(const char *title) {
   nav_open_app(title);
 }
 
+/* ======================================================
+   สร้างจุดบอกหน้าด้านล่าง
+====================================================== */
+
+static void create_page_indicator(lv_obj_t *parent) {
+  /*
+     จุดซ้ายและขวาเป็นจุดเล็กสีเข้ม
+     จุดกลางเป็นหน้าปัจจุบัน สีขาว
+
+     หากต้องการขยับขึ้น/ลง:
+     แก้ค่า y จาก -12
+     - ค่าติดลบมากขึ้น = ขยับขึ้น
+     - ค่าติดลบน้อยลง = ขยับลง
+  */
+
+  lv_obj_t *dot_left = lv_obj_create(parent);
+  lv_obj_remove_style_all(dot_left);
+  lv_obj_set_size(dot_left, 6, 6);
+  lv_obj_set_style_radius(dot_left, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(dot_left, COLOR_PRIMARY, 0);
+  lv_obj_set_style_bg_opa(dot_left, LV_OPA_COVER, 0);
+  lv_obj_align(dot_left, LV_ALIGN_BOTTOM_MID, -18, -12);
+
+  lv_obj_t *dot_center = lv_obj_create(parent);
+  lv_obj_remove_style_all(dot_center);
+  lv_obj_set_size(dot_center, 9, 9);
+  lv_obj_set_style_radius(dot_center, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(dot_center, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(dot_center, LV_OPA_COVER, 0);
+  lv_obj_align(dot_center, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+  lv_obj_t *dot_right = lv_obj_create(parent);
+  lv_obj_remove_style_all(dot_right);
+  lv_obj_set_size(dot_right, 6, 6);
+  lv_obj_set_style_radius(dot_right, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(dot_right, COLOR_PRIMARY, 0);
+  lv_obj_set_style_bg_opa(dot_right, LV_OPA_COVER, 0);
+  lv_obj_align(dot_right, LV_ALIGN_BOTTOM_MID, 18, -12);
+}
+
+/* ======================================================
+   สร้างหน้า Desktop
+====================================================== */
+
 void desktop_create() {
+  /* สร้าง Screen หลัก */
   lv_obj_t *scr = lv_obj_create(NULL);
   theme_apply_screen(scr);
 
+  /* ป้องกันหน้าเลื่อน */
+  lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+
+  /* Status Bar ด้านบน */
   statusbar_create(scr);
 
-  lv_obj_t *title = lv_label_create(scr);
-  lv_label_set_text(title, "TeYoMaRu OS");
-  theme_apply_label(title, true);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 32);
+  /*
+     ไม่แสดงคำว่า TeYoMaRu OS กลางจอ
+     เพื่อให้ Layout ใกล้รูปตัวอย่าง และมีพื้นที่ Tile มากขึ้น
+  */
 
-  // จอจริงกว้าง 480px (ไม่ใช่ 320px) จึงจัดตำแหน่ง tile ให้อยู่กึ่งกลางแนวนอน
-  // บล็อก tile ทั้งหมดกว้าง 4*62 + 3*10 = 278px -> เริ่มที่ x = (480-278)/2 = 101
-  // แถวที่ 1
-  tile_create(scr, 101, 65,  "+", "Scan",      on_tile_click);
-  tile_create(scr, 173, 65,  "~", "WiFi",      on_tile_click);
-  tile_create(scr, 245, 65,  "[]", "Files",    on_tile_click);
-  tile_create(scr, 317, 65,  "#", "System",    on_tile_click);
+  /* ====================================================
+     แถวที่ 1
 
-  // แถวที่ 2
-  tile_create(scr, 101, 137, "*", "Settings",  on_tile_click);
-  tile_create(scr, 173, 137, "B", "Bluetooth", on_tile_click);
-  tile_create(scr, 245, 137, "i", "About",     on_tile_click);
-  tile_create(scr, 317, 137, "P", "Power",     on_tile_click);
+     ตำแหน่งคำนวณจาก:
+     x = TILE_START_X + (คอลัมน์ * TILE_GAP_X)
+     y = TILE_START_Y
+  ==================================================== */
 
-  lv_obj_t *hint = lv_label_create(scr);
-  lv_label_set_text(hint, "Yellow / White / Orange theme");
-  theme_apply_small_label(hint, true);
-  lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
+  tile_create(
+    scr,
+    TILE_START_X + (0 * TILE_GAP_X),
+    TILE_START_Y,
+    LV_SYMBOL_IMAGE,
+    "Scan",
+    on_tile_click
+  );
 
+  tile_create(
+    scr,
+    TILE_START_X + (1 * TILE_GAP_X),
+    TILE_START_Y,
+    LV_SYMBOL_WIFI,
+    "WiFi",
+    on_tile_click
+  );
+
+  tile_create(
+    scr,
+    TILE_START_X + (2 * TILE_GAP_X),
+    TILE_START_Y,
+    LV_SYMBOL_DIRECTORY,
+    "Files",
+    on_tile_click
+  );
+
+  tile_create(
+    scr,
+    TILE_START_X + (3 * TILE_GAP_X),
+    TILE_START_Y,
+    LV_SYMBOL_SETTINGS,
+    "System",
+    on_tile_click
+  );
+
+  /* ====================================================
+     แถวที่ 2
+
+     y = TILE_START_Y + TILE_GAP_Y
+  ==================================================== */
+
+  tile_create(
+    scr,
+    TILE_START_X + (0 * TILE_GAP_X),
+    TILE_START_Y + TILE_GAP_Y,
+    LV_SYMBOL_SETTINGS,
+    "Settings",
+    on_tile_click
+  );
+
+  tile_create(
+    scr,
+    TILE_START_X + (1 * TILE_GAP_X),
+    TILE_START_Y + TILE_GAP_Y,
+    LV_SYMBOL_BLUETOOTH,
+    "Bluetooth",
+    on_tile_click
+  );
+
+  tile_create(
+    scr,
+    TILE_START_X + (2 * TILE_GAP_X),
+    TILE_START_Y + TILE_GAP_Y,
+    LV_SYMBOL_WARNING,
+    "About",
+    on_tile_click
+  );
+
+  tile_create(
+    scr,
+    TILE_START_X + (3 * TILE_GAP_X),
+    TILE_START_Y + TILE_GAP_Y,
+    LV_SYMBOL_POWER,
+    "Power",
+    on_tile_click
+  );
+
+  /* จุดแสดงหน้าด้านล่าง */
+  create_page_indicator(scr);
+
+  /* โหลดหน้า Desktop */
   lv_scr_load(scr);
 }
