@@ -14,12 +14,19 @@ static TFT_eSPI tft = TFT_eSPI();
 /* ======================================================
    LVGL Draw Buffer
 
-   ใช้ Buffer สูง 10 แถว
-   รองรับทั้งแนวนอน 480x320 และแนวตั้ง 320x480
+   เดิมใช้เพียง 6 แถว ทำให้การเลื่อนกระตุก
+   ปรับเป็น 30 แถว เพื่อให้ส่งภาพต่อครั้งได้มากขึ้น
+
+   480 × 30 × 2 bytes ≈ 28.8 KB
 ====================================================== */
 
+#define DISPLAY_BUFFER_LINES 8
+
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf1[SCREEN_WIDTH * 6];
+
+static lv_color_t buf1[
+    SCREEN_WIDTH * DISPLAY_BUFFER_LINES
+];
 
 /* Driver หลักของ LVGL */
 static lv_disp_drv_t disp_drv;
@@ -34,48 +41,48 @@ static bool portrait_mode = false;
 /* ======================================================
    LVGL Flush Callback
 
-   ทำหน้าที่ส่งข้อมูลภาพจาก LVGL ไปยังจอ TFT
-
-   หมายเหตุ:
-   - ใช้ pushColors เพื่อส่งข้อมูลรวดเดียว
-   - true คือให้ TFT_eSPI จัดการ byte swap
+   ส่งข้อมูลภาพจาก LVGL ไปยังจอ TFT
 ====================================================== */
 
 static void my_disp_flush(
-  lv_disp_drv_t *disp,
-  const lv_area_t *area,
-  lv_color_t *color_p
+    lv_disp_drv_t *disp,
+    const lv_area_t *area,
+    lv_color_t *color_p
 ) {
-  /* คำนวณความกว้างและความสูงของพื้นที่ */
-  uint32_t w = area->x2 - area->x1 + 1;
-  uint32_t h = area->y2 - area->y1 + 1;
+    /* คำนวณขนาดพื้นที่ */
+    uint32_t width =
+        area->x2 - area->x1 + 1;
 
-  /* จำนวน Pixel ทั้งหมด */
-  uint32_t pixel_count = w * h;
+    uint32_t height =
+        area->y2 - area->y1 + 1;
 
-  /* เริ่มเขียนข้อมูลไปยังจอ */
-  tft.startWrite();
+    uint32_t pixel_count =
+        width * height;
 
-  /* กำหนดพื้นที่ที่จะวาด */
-  tft.setAddrWindow(
-    area->x1,
-    area->y1,
-    w,
-    h
-  );
+    /* เริ่มส่งข้อมูลไปยังจอ */
+    tft.startWrite();
 
-  /* ส่งข้อมูลสีจาก LVGL ไปยัง TFT */
-  tft.pushColors(
-    reinterpret_cast<uint16_t *>(color_p),
-    pixel_count,
-    true
-  );
+    tft.setAddrWindow(
+        area->x1,
+        area->y1,
+        width,
+        height
+    );
 
-  /* จบการเขียน */
-  tft.endWrite();
+    /*
+       true = ให้ TFT_eSPI สลับ Byte
+       ให้ตรงกับข้อมูลสี RGB565 ของ LVGL
+    */
+    tft.pushColors(
+        reinterpret_cast<uint16_t *>(color_p),
+        pixel_count,
+        true
+    );
 
-  /* แจ้ง LVGL ว่าวาดเสร็จแล้ว */
-  lv_disp_flush_ready(disp);
+    tft.endWrite();
+
+    /* แจ้ง LVGL ว่าส่งภาพเสร็จแล้ว */
+    lv_disp_flush_ready(disp);
 }
 
 /* ======================================================
@@ -86,38 +93,48 @@ static void my_disp_flush(
 ====================================================== */
 
 static void apply_orientation(bool portrait) {
-  portrait_mode = portrait;
+    portrait_mode = portrait;
 
-  if (portrait_mode) {
-    /* แนวตั้ง */
-    tft.setRotation(0);
+    if (portrait_mode) {
+        /* แนวตั้ง */
+        tft.setRotation(0);
 
-    disp_drv.hor_res = 320;
-    disp_drv.ver_res = 480;
-  } else {
-    /* แนวนอน */
-    tft.setRotation(1);
+        disp_drv.hor_res = 320;
+        disp_drv.ver_res = 480;
+    } else {
+        /* แนวนอน */
+        tft.setRotation(1);
 
-    disp_drv.hor_res = 480;
-    disp_drv.ver_res = 320;
-  }
+        disp_drv.hor_res = 480;
+        disp_drv.ver_res = 320;
+    }
 
-  /* ถ้า Register LVGL Driver แล้ว
-     ให้อัปเดตความละเอียดใหม่ */
-  if (disp_registered) {
-    lv_disp_drv_update(
-      lv_disp_get_default(),
-      &disp_drv
-    );
+    /*
+       ถ้า Register Driver แล้ว
+       ให้อัปเดตความละเอียด
+    */
+    if (disp_registered) {
+        lv_disp_t *display =
+            lv_disp_get_default();
 
-    /* สั่งให้ LVGL วาดหน้าใหม่ทั้งหมด */
-    lv_obj_invalidate(
-      lv_scr_act()
-    );
-  }
+        if (display != nullptr) {
+            lv_disp_drv_update(
+                display,
+                &disp_drv
+            );
+        }
 
-  /* ล้างจอเป็นสีดำ */
-  tft.fillScreen(TFT_BLACK);
+        /* สั่งวาดหน้าปัจจุบันใหม่ */
+        lv_obj_t *screen =
+            lv_scr_act();
+
+        if (screen != nullptr) {
+            lv_obj_invalidate(screen);
+        }
+    }
+
+    /* ล้างจอหลังเปลี่ยนแนว */
+    tft.fillScreen(TFT_BLACK);
 }
 
 /* ======================================================
@@ -125,57 +142,53 @@ static void apply_orientation(bool portrait) {
 ====================================================== */
 
 void display_init() {
-  /* เปิดไฟ Backlight */
-  display_backlight_on();
+    /* เปิด Backlight */
+    display_backlight_on();
 
-  /* เริ่มต้น TFT */
-  tft.begin();
+    /* เริ่มต้น TFT */
+    tft.begin();
 
-  /* ตั้งค่าเริ่มต้นเป็นแนวนอน 480x320 */
-  tft.setRotation(1);
+    /* แนวนอน 480x320 */
+    tft.setRotation(1);
 
-  /*
-     สำหรับจอ ILI9488 ชุดนี้
-     ต้องใช้ invertDisplay(true)
-     เพื่อให้สีดำ/ขาวและสีอื่นแสดงถูกต้อง
-  */
-  tft.invertDisplay(true);
+    /*
+       จอ ILI9488 ชุดนี้ต้องกลับสี
+       เพื่อให้สีดำและสีอื่นแสดงถูกต้อง
+    */
+    tft.invertDisplay(true);
 
-  /* ล้างหน้าจอเป็นสีดำก่อนเริ่ม LVGL */
-  tft.fillScreen(TFT_BLACK);
+    /* ล้างจอก่อนเริ่ม LVGL */
+    tft.fillScreen(TFT_BLACK);
 
-  /* เริ่มต้น LVGL */
-  lv_init();
+    /* เริ่มต้น LVGL */
+    lv_init();
 
-  /* สร้าง Draw Buffer */
-  lv_disp_draw_buf_init(
-    &draw_buf,
-    buf1,
-    NULL,
-    SCREEN_WIDTH * 6
-  );
+    /* สร้าง Draw Buffer ขนาด 30 แถว */
+    lv_disp_draw_buf_init(
+        &draw_buf,
+        buf1,
+        nullptr,
+        SCREEN_WIDTH * DISPLAY_BUFFER_LINES
+    );
 
-  /* เริ่มต้น Display Driver */
-  lv_disp_drv_init(&disp_drv);
+    /* เริ่มต้น Display Driver */
+    lv_disp_drv_init(&disp_drv);
 
-  /* กำหนดความละเอียดเริ่มต้น */
-  disp_drv.hor_res = SCREEN_WIDTH;
-  disp_drv.ver_res = SCREEN_HEIGHT;
+    /* ความละเอียดเริ่มต้น */
+    disp_drv.hor_res = SCREEN_WIDTH;
+    disp_drv.ver_res = SCREEN_HEIGHT;
 
-  /* กำหนด Callback สำหรับวาดจอ */
-  disp_drv.flush_cb = my_disp_flush;
+    /* Callback สำหรับส่งภาพ */
+    disp_drv.flush_cb = my_disp_flush;
 
-  /* เชื่อม Draw Buffer เข้ากับ Driver */
-  disp_drv.draw_buf = &draw_buf;
+    /* เชื่อม Buffer กับ Driver */
+    disp_drv.draw_buf = &draw_buf;
 
-  /* Register Display Driver */
-  lv_disp_drv_register(&disp_drv);
+    /* Register Driver */
+    lv_disp_drv_register(&disp_drv);
 
-  /* บันทึกสถานะว่า Register แล้ว */
-  disp_registered = true;
-
-  /* ค่าเริ่มต้นเป็น Landscape */
-  portrait_mode = false;
+    disp_registered = true;
+    portrait_mode = false;
 }
 
 /* ======================================================
@@ -183,7 +196,7 @@ void display_init() {
 ====================================================== */
 
 void display_set_landscape() {
-  apply_orientation(false);
+    apply_orientation(false);
 }
 
 /* ======================================================
@@ -191,15 +204,15 @@ void display_set_landscape() {
 ====================================================== */
 
 void display_set_portrait() {
-  apply_orientation(true);
+    apply_orientation(true);
 }
 
 /* ======================================================
-   ตรวจสอบว่าปัจจุบันเป็นแนวตั้งหรือไม่
+   ตรวจสอบแนวหน้าจอ
 ====================================================== */
 
 bool display_is_portrait() {
-  return portrait_mode;
+    return portrait_mode;
 }
 
 /* ======================================================
@@ -207,8 +220,8 @@ bool display_is_portrait() {
 ====================================================== */
 
 void display_backlight_on() {
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, HIGH);
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, HIGH);
 }
 
 /* ======================================================
@@ -216,6 +229,6 @@ void display_backlight_on() {
 ====================================================== */
 
 void display_backlight_off() {
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, LOW);
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, LOW);
 }
