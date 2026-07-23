@@ -29,7 +29,7 @@
 #define LV_USE_LINE 1
 #define LV_USE_ROLLER 0
 #define LV_USE_SLIDER 0
-#define LV_USE_SWITCH 0
+#define LV_USE_SWITCH 1
 #define LV_USE_TEXTAREA 1
 #define LV_USE_WIN 0
 #define LV_USE_TABVIEW 0

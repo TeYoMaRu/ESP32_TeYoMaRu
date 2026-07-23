@@ -19,7 +19,7 @@ static TFT_eSPI tft = TFT_eSPI();
 ====================================================== */
 
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf1[SCREEN_WIDTH * 10];
+static lv_color_t buf1[SCREEN_WIDTH * 6];
 
 /* Driver หลักของ LVGL */
 static lv_disp_drv_t disp_drv;
@@ -152,7 +152,7 @@ void display_init() {
     &draw_buf,
     buf1,
     NULL,
-    SCREEN_WIDTH * 10
+    SCREEN_WIDTH * 6
   );
 
   /* เริ่มต้น Display Driver */
